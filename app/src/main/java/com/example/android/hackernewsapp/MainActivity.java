@@ -10,21 +10,31 @@ import android.support.v4.widget.DrawerLayout;
 import android.support.v7.app.ActionBarDrawerToggle;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
+import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 
 import org.json.JSONArray;
 import org.json.JSONException;
+import org.json.JSONObject;
 
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
 public class MainActivity extends AppCompatActivity
         implements NavigationView.OnNavigationItemSelectedListener {
+
+    Map<Integer, String> articleUrls = new HashMap<Integer, String>();
+    Map<Integer, String> articleTitles = new HashMap<Integer, String>();
+    ArrayList<Integer> articleIds = new ArrayList<Integer>();
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -37,12 +47,24 @@ public class MainActivity extends AppCompatActivity
             JSONArray jsonArray = new JSONArray(result);
 //            for (int i = 0; i < jsonArray.length(); i++) {
             for (int i = 0; i < 10; i++) {
-
+                String articleId = jsonArray.getString(i);
 //                Log.i("Article ID", jsonArray.getString(i));
+                DownloadTask getArticle = new DownloadTask();
+                String articleInfo = getArticle.execute("https://hacker-news.firebaseio.com/v0/item/" + articleId + ".json?print=pretty").get();
+                JSONObject jsonObject = new JSONObject(articleInfo);
+                String articleTitle = jsonObject.getString("title");
+                String articleUrl = jsonObject.getString("url");
 
-                String articleInfor = downloadTask.execute("https://hacker-news.firebaseio.com/v0/item/" + jsonArray.getString(i) + ".json?print=pretty").get();
+                articleIds.add(Integer.valueOf(articleId));
+                articleTitles.put(Integer.valueOf(articleId), articleTitle);
+                articleUrls.put(Integer.valueOf(articleId), articleUrl);
+
+//                Log.i("Article title", articleTitle);
+//                Log.i("Article URL", articleUrl);
             }
-
+            Log.i("Article IDs", articleIds.toString());
+            Log.i("Article Titles", articleTitles.toString());
+            Log.i("Article URLs", articleUrls.toString());
 
         } catch (InterruptedException e) {
             e.printStackTrace();
