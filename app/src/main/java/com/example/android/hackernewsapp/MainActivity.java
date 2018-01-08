@@ -1,18 +1,12 @@
 package com.example.android.hackernewsapp;
 
+import android.app.Activity;
+import android.content.Intent;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteStatement;
 import android.os.AsyncTask;
 import android.os.Bundle;
-import android.support.design.widget.FloatingActionButton;
-import android.support.design.widget.NavigationView;
-import android.support.design.widget.Snackbar;
-import android.support.v4.view.GravityCompat;
-import android.support.v4.widget.DrawerLayout;
-import android.support.v7.app.ActionBarDrawerToggle;
-import android.support.v7.app.AppCompatActivity;
-import android.support.v7.widget.Toolbar;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -21,8 +15,10 @@ import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.ListView;
 
+import com.example.android.hackernewsapp.ArticleActivity;
+import com.example.android.hackernewsapp.R;
+
 import org.json.JSONArray;
-import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.InputStream;
@@ -32,169 +28,248 @@ import java.net.URL;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.ExecutionException;
 
-public class MainActivity extends AppCompatActivity
-        implements NavigationView.OnNavigationItemSelectedListener {
+public class MainActivity extends Activity {
 
-    Map<Integer, String> articleUrls = new HashMap<Integer, String>();
+    Map<Integer, String> articleURLs = new HashMap<Integer, String>();
     Map<Integer, String> articleTitles = new HashMap<Integer, String>();
     ArrayList<Integer> articleIds = new ArrayList<Integer>();
-    SQLiteDatabase articleDB;
-    ArrayList<String> titles = new ArrayList<>();
-    ArrayList<String> urls = new ArrayList<>();
+
+    SQLiteDatabase articlesDB;
+    ArrayList<String> titles = new ArrayList<String>();
     ArrayAdapter arrayAdapter;
+
+    ArrayList<String> urls = new ArrayList<String>();
+    ArrayList<String> content = new ArrayList<String>();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-
-        articleDB = this.openOrCreateDatabase("Articles", MODE_PRIVATE, null);
         ListView listView = (ListView) findViewById(R.id.listView);
         arrayAdapter = new ArrayAdapter(this, android.R.layout.simple_list_item_1, titles);
         listView.setAdapter(arrayAdapter);
+
         listView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
             @Override
-            public void onItemClick(AdapterView<?> adapterView, View view, int position, long l) {
-                Log.i("articleURL", urls.get(position));
+            public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
+
+                Intent i = new Intent(getApplicationContext(), ArticleActivity.class);
+                i.putExtra("articleUrl", urls.get(position));
+                i.putExtra("content", content.get(position));
+                startActivity(i);
+
             }
         });
 
-        articleDB.execSQL("CREATE TABLE IF NOT EXISTS articles(id INTEGER PRIMARY KEY,articleid INTEGER, articleurl VARCHAR, articletitle VARCHAR, content VARCHAR)");
+        articlesDB = this.openOrCreateDatabase("Articles", MODE_PRIVATE, null);
 
-        DownloadTask downloadTask = new DownloadTask();
+        articlesDB.execSQL("CREATE TABLE IF NOT EXISTS articles (id INTEGER PRIMARY KEY, articleId INTEGER, url VARCHAR, title VARCHAR, content VARCHAR)");
+
+        updateListView();
+
+        DownloadTask task = new DownloadTask();
         try {
-            String result = downloadTask.execute("https://hacker-news.firebaseio.com/v0/topstories.json?print=pretty").get();
-//            Log.i("Results", result);
-            JSONArray jsonArray = new JSONArray(result);
-//            for (int i = 0; i < jsonArray.length(); i++) {
-            articleDB.execSQL("DELETE FROM articles");
-            for (int i = 0; i < 10; i++) {
-                String articleId = jsonArray.getString(i);
-//                Log.i("Article ID", jsonArray.getString(i));
-                DownloadTask getArticle = new DownloadTask();
-                String articleInfo = getArticle.execute("https://hacker-news.firebaseio.com/v0/item/" + articleId + ".json?print=pretty").get();
-                JSONObject jsonObject = new JSONObject(articleInfo);
-                String articleTitle = jsonObject.getString("title");
-                String articleUrl = jsonObject.getString("url");
 
-                articleIds.add(Integer.valueOf(articleId));
-                articleTitles.put(Integer.valueOf(articleId), articleTitle);
-                articleUrls.put(Integer.valueOf(articleId), articleUrl);
+            task.execute("https://hacker-news.firebaseio.com/v0/topstories.json?print=pretty");
 
+        } catch (Exception e) {
 
-                String sql = "INSERT INTO articles(articleid,articleurl,articletitle) VALUES (?,?,?)";
-                SQLiteStatement statement = articleDB.compileStatement(sql);
-                statement.bindString(1, articleId);
-                statement.bindString(2, articleUrl);
-                statement.bindString(3, articleTitle);
-                statement.execute();
-//                articleDB.execSQL("INSERT INTO articles(articleid,articleurl,articletitle) VALUES (" + articleId + ",'" + articleUrl + "','" + articleTitle + "')");
-
-
-//                Log.i("Article title", articleTitle);
-//                Log.i("Article URL", articleUrl);
-            }
-//            Log.i("Article IDs", articleIds.toString());
-//            Log.i("Article Titles", articleTitles.toString());
-//            Log.i("Article URLs", articleUrls.toString());
-
-            Cursor cursor = articleDB.rawQuery("SELECT * FROM articles ORDER BY articleid DESC", null);
-
-            int articleIdIndex = cursor.getColumnIndex("articleId");
-            int articleUrlIndex = cursor.getColumnIndex("articleurl");
-            int articleTitleIndex = cursor.getColumnIndex("articletitle");
-
-            cursor.moveToFirst();
-            titles.clear();
-            urls.clear();
-            while (cursor != null) {
-                titles.add(cursor.getString(articleTitleIndex));
-                urls.add(cursor.getString(articleUrlIndex));
-
-//                Log.i("Article Id", Integer.toString(cursor.getInt(articleIdIndex)));
-//                Log.i("Article URL", cursor.getString(articleUrlIndex));
-//                Log.i("Article Title", cursor.getString(articleTitleIndex));
-                cursor.moveToNext();
-            }
-            arrayAdapter.notifyDataSetChanged();
-
-        } catch (InterruptedException e) {
             e.printStackTrace();
-        } catch (ExecutionException e) {
-            e.printStackTrace();
-        } catch (JSONException e) {
-            e.printStackTrace();
+
         }
 
-        Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
-        setSupportActionBar(toolbar);
 
-        FloatingActionButton fab = (FloatingActionButton) findViewById(R.id.fab);
-        fab.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                Snackbar.make(view, "Replace with your own action", Snackbar.LENGTH_LONG)
-                        .setAction("Action", null).show();
-            }
-        });
-
-        DrawerLayout drawer = (DrawerLayout) findViewById(R.id.drawer_layout);
-        ActionBarDrawerToggle toggle = new ActionBarDrawerToggle(
-                this, drawer, toolbar, R.string.navigation_drawer_open, R.string.navigation_drawer_close);
-        drawer.addDrawerListener(toggle);
-        toggle.syncState();
-
-        NavigationView navigationView = (NavigationView) findViewById(R.id.nav_view);
-        navigationView.setNavigationItemSelectedListener(this);
     }
 
+    public void updateListView() {
+
+        try {
+
+            Log.i("UI UPDATED", "DONE");
+
+            Cursor c = articlesDB.rawQuery("SELECT * FROM articles", null);
+
+            int contentIndex = c.getColumnIndex("content");
+            int urlIndex = c.getColumnIndex("url");
+            int titleIndex = c.getColumnIndex("title");
+
+            c.moveToFirst();
+
+            titles.clear();
+            urls.clear();
+
+
+            while (c != null) {
+
+                titles.add(c.getString(titleIndex));
+                urls.add(c.getString(urlIndex));
+                content.add(c.getString(contentIndex));
+
+                c.moveToNext();
+
+            }
+
+            arrayAdapter.notifyDataSetChanged();
+
+
+
+        }catch (Exception e) {
+
+            e.printStackTrace();
+
+        }
+
+
+
+
+
+    }
 
     public class DownloadTask extends AsyncTask<String, Void, String> {
+
 
         @Override
         protected String doInBackground(String... urls) {
 
-            String results = "";
+            String result = "";
             URL url;
             HttpURLConnection urlConnection = null;
+
             try {
+
                 url = new URL(urls[0]);
+
                 urlConnection = (HttpURLConnection) url.openConnection();
-                InputStream inputStream = urlConnection.getInputStream();
-                InputStreamReader reader = new InputStreamReader(inputStream);
+
+                InputStream in = urlConnection.getInputStream();
+
+                InputStreamReader reader = new InputStreamReader(in);
 
                 int data = reader.read();
+
                 while (data != -1) {
+
                     char current = (char) data;
-                    results += current;
+
+                    result += current;
+
                     data = reader.read();
+
                 }
 
-            } catch (java.io.IOException e) {
+                JSONArray jsonArray = new JSONArray(result);
+
+                articlesDB.execSQL("DELETE FROM articles");
+
+                for (int i = 0; i < 20; i++) {
+
+                    String articleId = jsonArray.getString(i);
+
+                    url = new URL("https://hacker-news.firebaseio.com/v0/item/" + articleId + ".json?print=pretty");
+
+                    urlConnection = (HttpURLConnection) url.openConnection();
+
+                    in = urlConnection.getInputStream();
+
+                    reader = new InputStreamReader(in);
+
+                    data = reader.read();
+
+                    String articleInfo = "";
+
+                    while (data != -1 ) {
+
+                        char current = (char) data;
+
+                        articleInfo += current;
+
+                        data = reader.read();
+
+                    }
+
+                    JSONObject jsonObject = new JSONObject(articleInfo);
+
+
+
+                    String articleTitle = jsonObject.getString("title");
+                    String articleURL = jsonObject.getString("url");
+
+
+                    String articleContent = "";
+
+                    /*
+
+                    url = new URL(articleURL);
+
+                    urlConnection = (HttpURLConnection) url.openConnection();
+
+                    in = urlConnection.getInputStream();
+
+                    reader = new InputStreamReader(in);
+
+                    data = reader.read();
+
+
+
+                    while (data != -1 ) {
+
+                        char current = (char) data;
+
+                        articleInfo += current;
+
+                        data = reader.read();
+
+                    }
+
+                    */
+
+
+                    articleIds.add(Integer.valueOf(articleId));
+                    articleTitles.put(Integer.valueOf(articleId), articleTitle);
+                    articleURLs.put(Integer.valueOf(articleId), articleURL);
+
+                    String sql = "INSERT INTO articles (articleId, url, title, content) VALUES (? , ? , ? , ?)";
+
+
+                    SQLiteStatement statement = articlesDB.compileStatement(sql);
+
+                    statement.bindString(1, articleId);
+                    statement.bindString(2, articleURL);
+                    statement.bindString(3, articleTitle);
+                    statement.bindString(4, articleContent);
+
+                    statement.execute();
+
+
+                }
+
+
+            }catch (Exception e) {
+
                 e.printStackTrace();
+
             }
 
-            return results;
+
+            return result;
+        }
+
+        @Override
+        protected void onPostExecute(String s) {
+            super.onPostExecute(s);
+
+            updateListView();
+
         }
     }
 
-    @Override
-    public void onBackPressed() {
-        DrawerLayout drawer = (DrawerLayout) findViewById(R.id.drawer_layout);
-        if (drawer.isDrawerOpen(GravityCompat.START)) {
-            drawer.closeDrawer(GravityCompat.START);
-        } else {
-            super.onBackPressed();
-        }
-    }
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         // Inflate the menu; this adds items to the action bar if it is present.
-        getMenuInflater().inflate(R.menu.main, menu);
+        getMenuInflater().inflate(R.menu.menu_main, menu);
         return true;
     }
 
@@ -211,30 +286,5 @@ public class MainActivity extends AppCompatActivity
         }
 
         return super.onOptionsItemSelected(item);
-    }
-
-    @SuppressWarnings("StatementWithEmptyBody")
-    @Override
-    public boolean onNavigationItemSelected(MenuItem item) {
-        // Handle navigation view item clicks here.
-        int id = item.getItemId();
-
-        if (id == R.id.nav_camera) {
-            // Handle the camera action
-        } else if (id == R.id.nav_gallery) {
-
-        } else if (id == R.id.nav_slideshow) {
-
-        } else if (id == R.id.nav_manage) {
-
-        } else if (id == R.id.nav_share) {
-
-        } else if (id == R.id.nav_send) {
-
-        }
-
-        DrawerLayout drawer = (DrawerLayout) findViewById(R.id.drawer_layout);
-        drawer.closeDrawer(GravityCompat.START);
-        return true;
     }
 }
